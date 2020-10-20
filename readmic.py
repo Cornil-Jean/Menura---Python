@@ -10,9 +10,9 @@ def recsample(id=0):
     #frequence échantillonnage
     fs = 44100
     #durée en secondes
-    sec = 1
+    sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
-    chans = sounddevice.query_devices(1,'input')
+    chans = sounddevice.query_devices(0,'input')
     print ("Enregistrement 4 secondes a 44100")
     print("Nombre channels sur divice :", chans)
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])

@@ -90,4 +90,4 @@ def plotstft(audiopath, binsize=2**10, plotpath=None, colormap="jet"):
 
     return ims
 
-ims = plotstft('./out1.wav')
+ims = plotstft('./out0.wav')
