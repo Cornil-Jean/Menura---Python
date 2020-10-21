@@ -7,12 +7,22 @@
 
 import sounddevice
 from scipy import signal
-from scipy.io.wavfile import write
 import numpy as np
 from matplotlib import pyplot as plt
 from numpy.lib import stride_tricks
 import cv2 as cv
 import glob
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 """
 Enregistement du sample
@@ -22,17 +32,16 @@ Enregistement du sample
 """
 def recsample():
     #frequence échantillonnage
-    fs = 44100
+    fs = 44100 / 1
     #durée en secondes
     sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
-    chans = sounddevice.query_devices(0,'input')
+    chans = sounddevice.query_devices(1,'input')
     print ("Enregistrement 4 secondes a 44100")
     print("Nombre channels sur divice :", chans)
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])
+    # Wait for the end of the record
     sounddevice.wait()
-    # s = "out" + str(id) + ".wav"
-    # write(s,fs,record_voice)
     return record_voice, fs
 
 """
@@ -61,9 +70,9 @@ def stft(sig, frameSize, overlapFac=0.5, window=np.hanning):
 """ 
 scale frequency axis logarithmically
 
-@imput spec : 
-@output newspac : 
-@output freqs :  
+@imput spec : spectrogram
+@output newspac : new spectrogram
+@output freqs :  frequence of the new spectrogram
 """
 def logscale_spec(spec, sr=44100, factor=20.):
     timebins, freqbins = np.shape(spec)
@@ -98,7 +107,7 @@ plot spectrogram
 @input fs : fréquance d'échantillonage du sample
 @output None (image sauvgardée sur le disque)
 """
-def plotstft(sample, fs, binsize=2**10, plotpath=None, colormap="Greys"):
+def plotstft(sample, fs, binsize=2**10, colormap="Greys"):
     samplerate = fs
     samples = sample
 
@@ -132,12 +141,10 @@ Cleaner helper
 @ input roof : valeur minimal de reset
 @ output value traitée
 """
-def cleanerHelper(value, roof):
-    print(value)
+def cleanerSpectro_Helper(value, roof):
     if value < roof:
-        return 0
-    return value ** 2
-
+        return -roof
+    return value ** 3
 """
 Amélioration de l'image par convolution 2D
 
@@ -145,19 +152,14 @@ Amélioration de l'image par convolution 2D
 @output ims : array traitée
 """
 def spectrogramCleaner(ims):
-
-    np.vectorize(cleanerHelper)(ims, 50)
-
-    conv_array_push = np.array([
-        [-2, -1, 0],
-        [-1, 1, 1],
-        [0, 1, 2]
+    conv_array = np.array([
+        [2, 1, 1],
+        [1, 12, 1],
+        [1, 1, 2]
     ])
-
-    ims = signal.convolve2d(ims, conv_array_push, boundary='symm', mode='same')
-
-    np.vectorize(cleanerHelper)(ims, 250)
-
+    ims = signal.convolve2d(ims, conv_array, boundary='symm', mode='same')
+    ims_mean = np.mean(ims)
+    ims = np.vectorize(cleanerSpectro_Helper)(ims, ims_mean)
     return ims
 
 """
@@ -197,11 +199,12 @@ def sampleCorrelation():
         print("No correlation found")
         return None, None
     else :
+        corr_acc = round(best_corr_val * 100, 3)
         print(f"\n |=================================================================================|"
-              f"\n |Bird by correlation is : {best_corr_sample} "
-              f"\n |with a Coef of Corr : {best_corr_val}|"
+              f"\n |Bird by correlation is : {bcolors.OKGREEN} {best_corr_sample} {bcolors.ENDC}"
+              f"\n |with a Coef of Corr : {bcolors.WARNING} {corr_acc} {bcolors.ENDC}%"
               f"\n |=================================================================================|")
-        return best_corr_sample, best_corr_val
+        return best_corr_sample, corr_acc
 
 
 """
@@ -211,7 +214,6 @@ def sampleCorrelation():
 # récupération de l'audio
 sample, fs = recsample()
 plotstft(sample, fs)
-
 corr_sample_name, corr_value = sampleCorrelation()
 if( corr_sample_name != None and corr_value != None) :
     print(f"Sample = {corr_sample_name} | precision = {corr_value}")
