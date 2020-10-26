@@ -37,7 +37,7 @@ def recsample():
     sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
     chans = sounddevice.query_devices(1,'input')
-    print ("Enregistrement 4 secondes a 48000")
+    print ("Enregistrement %2d secondes a %2d" % (sec,fs))
     print("Nombre channels sur divice :", chans)
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])
     # Wait for the end of the record
@@ -46,6 +46,7 @@ def recsample():
 
 """
 short time fourier transform of audio signal
+
 @input sig :
 @input frameSize :
 @output :
@@ -192,9 +193,12 @@ def sampleCorrelation():
         res = cv.matchTemplate(ims,template,method)
         # Get Value from template matching
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(res)
-
-        print(f"with sample {sample} the coef of corr is : {max_val} \n")
-
+        if max_val <  0.65 :
+            print(f"with sample {sample} the coef of corr is : {bcolors.FAIL} {max_val}{bcolors.ENDC} \n")
+        elif max_val >  0.65 and max_val <  0.90:
+            print(f"with sample {sample} the coef of corr is : {bcolors.WARNING} {max_val}{bcolors.ENDC} \n")
+        else:
+            print(f"with sample {sample} the coef of corr is : {bcolors.OKGREEN} {max_val}{bcolors.ENDC} \n")
         # If better correlation save values
         if max_val > best_corr_val :
             best_corr_val = max_val
@@ -205,6 +209,9 @@ def sampleCorrelation():
         print("No correlation found")
         return None, None
     else :
+        x = best_corr_sample.split(".")
+        best_corr_sample = x[0].split("\\")
+        best_corr_sample = best_corr_sample[1].replace("_"," ")
         corr_acc = round(best_corr_val * 100, 3)
         print(f"\n |=================================================================================|"
               f"\n |Bird by correlation is : {bcolors.OKGREEN} {best_corr_sample} {bcolors.ENDC}"
@@ -216,12 +223,7 @@ def sampleCorrelation():
 """
         Main
 """
-
 # récupération de l'audio
 sample, fs = recsample()
 plotstft(sample, fs)
 corr_sample_name, corr_value = sampleCorrelation()
-if( corr_sample_name != None and corr_value != None) :
-    print(f"Sample = {corr_sample_name} | precision = {corr_value}")
-else :
-    print("Bird not found")
