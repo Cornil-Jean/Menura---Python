@@ -27,17 +27,17 @@ class bcolors:
 """
 Enregistement du sample
 
-@output record_voice : array de l'audio enregistrée par le micro 
+@output record_voice : array de l'audio enregistrée par le micro
 @output fs : fréquance d'échantiollonage du sample retrounée
 """
 def recsample():
     #frequence échantillonnage
-    fs = 44100 / 1
+    fs = 48000 / 1
     #durée en secondes
     sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
     chans = sounddevice.query_devices(1,'input')
-    print ("Enregistrement 4 secondes a 44100")
+    print ("Enregistrement 4 secondes a 48000")
     print("Nombre channels sur divice :", chans)
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])
     # Wait for the end of the record
@@ -46,10 +46,9 @@ def recsample():
 
 """
 short time fourier transform of audio signal
-
-@input sig : 
-@input frameSize : 
-@output : 
+@input sig :
+@input frameSize :
+@output :
 """
 def stft(sig, frameSize, overlapFac=0.5, window=np.hanning):
     win = window(frameSize)
@@ -67,7 +66,7 @@ def stft(sig, frameSize, overlapFac=0.5, window=np.hanning):
 
     return np.fft.rfft(frames)
 
-""" 
+"""
 scale frequency axis logarithmically
 
 @imput spec : spectrogram
@@ -131,6 +130,13 @@ def plotstft(sample, fs, binsize=2**10, colormap="Greys"):
     ylocs = np.int16(np.round(np.linspace(0, freqbins-1, 10)))
     plt.yticks(ylocs, ["%.02f" % freq[i] for i in ylocs])
 
+    plt.gca().set_axis_off()
+    plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0,
+                hspace = 0, wspace = 0)
+    plt.margins(0,0)
+    plt.gca().xaxis.set_major_locator(plt.NullLocator())
+    plt.gca().yaxis.set_major_locator(plt.NullLocator())
+    plt.savefig("filename.pdf", bbox_inches = 'tight', pad_inches = 0)
     plt.savefig('ims.png', dpi= 400)
     plt.clf()
 
