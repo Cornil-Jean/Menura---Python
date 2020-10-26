@@ -37,11 +37,15 @@ def recsample():
     sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
     chans = sounddevice.query_devices(1,'input')
-    print ("Enregistrement %2d secondes a %2d" % (sec,fs))
-    print("Nombre channels sur divice :", chans)
+
+    print ( f"Enregistrement {sec} secondes a {fs}dHz"
+            f"\n|=================================================================================|")
+    #print("Nombre channels sur divice :", chans)
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])
     # Wait for the end of the record
     sounddevice.wait()
+    print ( f"\n"
+            f"Correlation : ")
     return record_voice, fs
 
 """
@@ -120,8 +124,8 @@ def plotstft(sample, fs, binsize=2**10, colormap="Greys"):
 
     timebins, freqbins = np.shape(ims)
 
-    print("timebins: ", timebins)
-    print("freqbins: ", freqbins)
+    #print("timebins: ", timebins)
+    #print("freqbins: ", freqbins)
 
     plt.figure(figsize=(15, 7.5))
     plt.imshow(np.transpose(ims), origin="lower", aspect="auto", cmap=colormap, interpolation="none")
@@ -213,10 +217,13 @@ def sampleCorrelation():
         best_corr_sample = x[0].split("\\")
         best_corr_sample = best_corr_sample[1].replace("_"," ")
         corr_acc = round(best_corr_val * 100, 3)
-        print(f"\n |=================================================================================|"
-              f"\n |Bird by correlation is : {bcolors.OKGREEN} {best_corr_sample} {bcolors.ENDC}"
-              f"\n |with a Coef of Corr : {bcolors.WARNING} {corr_acc} {bcolors.ENDC}%"
-              f"\n |=================================================================================|")
+        print(f"\n|=================================================================================|"
+              f"\n| Bird by correlation is : {bcolors.OKGREEN} {best_corr_sample} {bcolors.ENDC}"
+              f"\n| with a Coef of Corr : {bcolors.WARNING} {corr_acc} {bcolors.ENDC}%"
+              f"\n|=================================================================================|"
+              f"\n"
+              f"\n")
+
         return best_corr_sample, corr_acc
 
 
@@ -224,6 +231,3 @@ def sampleCorrelation():
         Main
 """
 # récupération de l'audio
-sample, fs = recsample()
-plotstft(sample, fs)
-corr_sample_name, corr_value = sampleCorrelation()
