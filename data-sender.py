@@ -4,7 +4,7 @@ import os
 from json import JSONEncoder
 from datetime import date
 import pickle
-from getmac import get_mac_address as gma
+from uuid import getnode as get_mac
 
 url_test = "http://www.google.com"
 url_db = 'http://146.59.195.248:3000/v1/api/historiques'
@@ -77,7 +77,6 @@ def recup_data():
         return oiseau_loaded
     return None
 
-
 #
 # fonction de dispatching en fonctione de l'état de la connection
 # @input send data bird and load data if needed
@@ -87,7 +86,7 @@ def sendData(oiseau):
         'oiseau': oiseau.id,
         'date': oiseau.date,
         'localisation': oiseau.localisation,
-        'capteur': oiseau.capteur}
+        'capteur':  oiseau.capteur}
     )
 
     oiseau_list_recup = recup_data()
@@ -115,7 +114,7 @@ def sendData(oiseau):
 def main():
     current_date = date.today()
     current_date_sqlFormat = current_date.strftime("%Y-%m-%d %H:%M:%S")
-    oiseau = Oiseau(1, current_date_sqlFormat, 'testing' , 1)
+    oiseau = Oiseau(1, current_date_sqlFormat, 'testing' , "FF:FF:FF:FF:FF:FF") #get_mac()
 
     sendData(oiseau)
 
