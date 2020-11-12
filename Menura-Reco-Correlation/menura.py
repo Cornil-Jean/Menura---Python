@@ -1,10 +1,23 @@
 #!/usr/local/bin/python3
+
+
+#------------------------------#
+# Liste des install a réaliser
+#------------------------------#
 #pip install sounddevice
 #pip install scipy
-# pip install opencv-python
+#pip install opencv-python
+
+
+#------------------------------#
+# Documentation
+#------------------------------#
 #Doc api sounddevice https://python-sounddevice.readthedocs.io/en/0.3.12/api.html
 #Doc OpenCV https://docs.opencv.org/master/df/dfb/group__imgproc__object.html#gga3a7850640f1fe1f58fe91a2d7583695dac6677e2af5e0fae82cc5339bfaef5038
 
+#------------------------------#
+# Imports
+#------------------------------#
 import sounddevice
 from scipy import signal
 import numpy as np
@@ -12,7 +25,11 @@ from matplotlib import pyplot as plt
 from numpy.lib import stride_tricks
 import cv2 as cv
 import glob
+import re
 
+"""
+Class de couleur pour l'écriture en console
+"""
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -36,39 +53,38 @@ def recsample():
     #durée en secondes
     sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
-    chans = sounddevice.query_devices(1,'input')
-
-    print ( f"Enregistrement {sec} secondes a {fs}dHz"
-            f"\n|=================================================================================|")
-    #print("Nombre channels sur divice :", chans)
+    chans = sounddevice.query_devices(0,'input')
+    print (f"Enregistrement {sec} secondes a {fs}dHz")
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])
-    # Wait for the end of the record
+    # Attente de la fin du record du sample
     sounddevice.wait()
-    print ( f"\n"
-            f"Correlation : ")
     return record_voice, fs
 
 """
 short time fourier transform of audio signal
 
 @input sig :
-@input frameSize :
+@input frameSize : 
 @output :
 """
 def stft(sig, frameSize, overlapFac=0.5, window=np.hanning):
     win = window(frameSize)
     hopSize = int(frameSize - np.floor(overlapFac * frameSize))
 
-    # zeros at beginning (thus center of 1st window should be for sample nr. 0)
+    # ajout de zéros au début des samples
+    # basé sur la moitée de la taille de la fenêtre
     samples = np.append(np.zeros(int(np.floor(frameSize/2.0))), sig)
-    # cols for windowing
+    # cols pour la mise en place de la fenêtre
     cols = np.ceil( (len(samples) - frameSize) / float(hopSize)) + 1
-    # zeros at end (thus samples can be fully covered by frames)
+    # ajout de zéros a la fin des samples
+    # basé sur la taille de la fenêtre
     samples = np.append(samples, np.zeros(frameSize))
 
+    # mise en forme de la nouvelle array sur base des paramètres voulu par la FTT
     frames = stride_tricks.as_strided(samples, shape=(int(cols), frameSize), strides=(samples.strides[0]*hopSize, samples.strides[0])).copy()
     frames *= win
 
+    # calcul de la FTT discrète sur base de la nouvelle array formatée
     return np.fft.rfft(frames)
 
 """
@@ -114,39 +130,35 @@ plot spectrogram
 def plotstft(sample, fs, binsize=2**10, colormap="Greys"):
     samplerate = fs
     samples = sample
-
+    # signal par FTT
     s = stft(samples, binsize)
 
+    # optention du nouveau signal sur base de la FTT
+    # et de la fonction de représentation logarithmique du song
     sshow, freq = logscale_spec(s, factor=1.0, sr=samplerate)
 
-    ims = 20.*np.log10(np.abs(sshow)/10e-6) # amplitude to decibel
+    # trensformation de l'amplitude en décibel
+    # pour la représentation sur graphique
+    ims = 20.*np.log10(np.abs(sshow)/10e-6)
+
+    # passage dans la fonction de netoyage de l'image
     ims = spectrogramCleaner(ims)
 
-    timebins, freqbins = np.shape(ims)
-
-    #print("timebins: ", timebins)
-    #print("freqbins: ", freqbins)
-
+    # création du graphique avec plot
     plt.figure(figsize=(15, 7.5))
     plt.imshow(np.transpose(ims), origin="lower", aspect="auto", cmap=colormap, interpolation="none")
-
-    xlocs = np.float32(np.linspace(0, timebins-1, 5))
-    plt.xticks(xlocs, ["%.02f" % l for l in ((xlocs*len(samples)/timebins)+(0.5*binsize))/samplerate])
-    ylocs = np.int16(np.round(np.linspace(0, freqbins-1, 10)))
-    plt.yticks(ylocs, ["%.02f" % freq[i] for i in ylocs])
-
     plt.gca().set_axis_off()
-    plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0,
-                hspace = 0, wspace = 0)
+    plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0,hspace = 0, wspace = 0)
     plt.margins(0,0)
     plt.gca().xaxis.set_major_locator(plt.NullLocator())
     plt.gca().yaxis.set_major_locator(plt.NullLocator())
-    plt.savefig("filename.pdf", bbox_inches = 'tight', pad_inches = 0)
+    # sauvgarde en pdf optionelle
+    # plt.savefig("filename.pdf", bbox_inches = 'tight', pad_inches = 0)
     plt.savefig('ims.png', dpi= 400)
     plt.clf()
 
 """
-Cleaner helper
+Cleaner helper pour le mapping sur l'image
 
 @ input value : valeur a traiter
 @ input roof : valeur minimal de reset
@@ -156,6 +168,8 @@ def cleanerSpectro_Helper(value, roof):
     if value < roof:
         return -roof
     return value ** 3
+
+
 """
 Amélioration de l'image par convolution 2D
 
@@ -168,9 +182,14 @@ def spectrogramCleaner(ims):
         [1, 12, 1],
         [1, 1, 2]
     ])
+    # passage par une array d'acentuation de l'image
     ims = signal.convolve2d(ims, conv_array, boundary='symm', mode='same')
+    # clacul de la moyenne de l'image
     ims_mean = np.mean(ims)
+    # suppression des éléments inférieurs a la moyenne
+    # vectorization de la fonction pour sont exécution sur chaque cellule du tableau
     ims = np.vectorize(cleanerSpectro_Helper)(ims, ims_mean)
+    # renvois de l'image nettoyée
     return ims
 
 """
@@ -190,12 +209,16 @@ def sampleCorrelation():
         # import du sample
         template = cv.imread(sample,0)
 
+        #définition de la méthode de matching
+        # CCOEFF = coeficients de correlation
+        # NORMED = au tour de 0 (pourcentage)
         meth = 'cv.TM_CCOEFF_NORMED'
+        # application de la méthode matching
         method = eval(meth)
 
-        # Apply template Matching
+        # application de la correlation d'image
         res = cv.matchTemplate(ims,template,method)
-        # Get Value from template matching
+        # récupération des valeurs de corrélation
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(res)
         if max_val <  0.65 :
             print(f"with sample {sample} the coef of corr is : {bcolors.FAIL} {max_val}{bcolors.ENDC} \n")
@@ -203,19 +226,17 @@ def sampleCorrelation():
             print(f"with sample {sample} the coef of corr is : {bcolors.WARNING} {max_val}{bcolors.ENDC} \n")
         else:
             print(f"with sample {sample} the coef of corr is : {bcolors.OKGREEN} {max_val}{bcolors.ENDC} \n")
-        # If better correlation save values
+        # Si une meilleur valeure de corrélation est obtenure, on garde celle-ci
         if max_val > best_corr_val :
             best_corr_val = max_val
             best_corr_sample = sample
 
-    # Test if corr coef is good inof
-    if best_corr_val < 0.65 :
+    # Vérification de la précision de la détection
+    # si plus de X alors on considère que nous avons détecter quelque chose
+    if best_corr_val < 0.30 :
         print("No correlation found")
         return None, None
     else :
-        x = best_corr_sample.split(".")
-        best_corr_sample = x[0].split("\\")
-        best_corr_sample = best_corr_sample[1].replace("_"," ")
         corr_acc = round(best_corr_val * 100, 3)
         print(f"\n|=================================================================================|"
               f"\n| Bird by correlation is : {bcolors.OKGREEN} {best_corr_sample} {bcolors.ENDC}"
@@ -223,11 +244,19 @@ def sampleCorrelation():
               f"\n|=================================================================================|"
               f"\n"
               f"\n")
-
+        # parsing de la correlation pour la récupération du nom de l'oiseau
+        best_corr_sample = re.sub('_[0-9]*.png', '', best_corr_sample)
+        best_corr_sample = best_corr_sample.replace('_', ' ')
+        best_corr_sample = best_corr_sample.replace('samples-bank/', '')
         return best_corr_sample, corr_acc
 
 
 """
         Main
 """
-# récupération de l'audio
+sample, fs = recsample()
+plotstft(sample, fs)
+
+oiseau_name, corr_value = sampleCorrelation()
+if( oiseau_name != None and corr_value != None) :
+    print(f"Oiseau = {oiseau_name} | precision = {corr_value}")
