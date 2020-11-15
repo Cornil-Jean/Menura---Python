@@ -1,25 +1,36 @@
 import requests
 import json
 import os
-from json import JSONEncoder
-from datetime import date
 import pickle
-from uuid import getnode as get_mac
 
 url_test = "http://www.google.com"
 url_db = 'http://146.59.195.248:3000/v1/api/historiques'
 timeout = 5
 storage_file_name = 'data_storage_no_connection.p'
+url_location_ip = "https://freegeoip.app/json/"
 
 #
 # Objet Oiseau pour sous format de la base de donnée
 #
 class Oiseau:
-  def __init__(self, id, date, localisation, capteur):
-      self.id = id
+  def __init__(self, name, date, localisation, capteur):
+      self.name = name
       self.date = date
       self.localisation = localisation
       self.capteur = capteur
+
+def get_location():
+    headers = {
+        'accept': "application/json",
+        'content-type': "application/json"
+    }
+    response = requests.request("GET", url_location_ip, headers=headers)
+    response = response.json()
+    country = response["country_name"]
+    region = response["region_name"]
+    city = response["city"]
+    location = f"{country} {region} {city}"
+    return location
 
 #
 # fonction de test de connection internet par le serveur google.com
@@ -83,7 +94,7 @@ def recup_data():
 #
 def sendData(oiseau):
     oiseau_json = json.dumps({
-        'oiseau': oiseau.id,
+        'oiseau': oiseau.name,
         'date': oiseau.date,
         'localisation': oiseau.localisation,
         'capteur':  oiseau.capteur}
@@ -107,16 +118,3 @@ def sendData(oiseau):
     else:
         print("Erreur de connection au réseau")
         store_data(oiseau_list)
-
-#
-# main
-#
-def main():
-    current_date = date.today()
-    current_date_sqlFormat = current_date.strftime("%Y-%m-%d %H:%M:%S")
-    oiseau = Oiseau(1, current_date_sqlFormat, 'testing' , "FF:FF:FF:FF:FF:FF") #get_mac()
-
-    sendData(oiseau)
-
-if __name__ == '__main__':
-    main()
