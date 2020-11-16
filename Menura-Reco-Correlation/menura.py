@@ -18,6 +18,10 @@
 #------------------------------#
 # Imports
 #------------------------------#
+#import _thread
+import sys
+import time
+import threading
 import math
 import sounddevice
 from scipy import signal
@@ -44,6 +48,13 @@ api_bird_list = [
     {"idoiseaux":6,"nom":"Chardonneret élégant"},
     {"idoiseaux":7,"nom":"Bruant Jaune"},
 ]
+
+"""
+gestion des threads
+"""
+max_thread = 5
+use_thread = True
+threads = list()
 
 """
 Class de couleur pour l'écriture en console
@@ -172,8 +183,13 @@ def plotstft(sample, fs, binsize=2**10, colormap="Greys"):
     plt.gca().yaxis.set_major_locator(plt.NullLocator())
     # sauvgarde en pdf optionelle
     # plt.savefig("filename.pdf", bbox_inches = 'tight', pad_inches = 0)
-    plt.savefig('ims.png', dpi= 400)
+    plt.savefig("ims.png", dpi= 400)
     plt.clf()
+    plt.cla()
+    plt.close('all')
+
+    ims_plot_data = cv.imread('ims.png', 0)
+    return ims_plot_data
 
 """
 Cleaner helper pour le mapping sur l'image
@@ -221,20 +237,21 @@ Correlation entre l'image donnée et la banque de donnée
     best_corr_sample || None => Meilleur sample de correlation si existant
     corr_acc || None => Valeur de la correlation si existant
 """
-def sampleCorrelation():
+def sampleCorrelation(ims_plot_data, verbose):
     # threshold d'acceptation de correlation
     # nombre max de correlatin acceptable
     corr_threshold = 0.6 # seul de correlation = 60%
     corr_value_bypass = 0.80  # seul de correlation assurée = 80%
-    max_number_of_correlation = 5 # Max 5 correlation si non erreur
+    max_number_of_correlation = 6 # Max 5 correlation si non erreur
     # Récupération de la liste des samples de test
     sampleList = glob.glob("samples-bank/bird/*.png")
     # Récupération du sample de silence
     silence_sample = glob.glob("samples-bank/Silence.png")[0]
 
     # Récupération du spectrogramme a analyser
-    ims_file = "ims.png"
-    ims = cv.imread(ims_file,0)
+    #ims_file = ims_file_name
+    #ims = cv.imread(ims_file,0)
+    ims = ims_plot_data
 
     best_corr_val = 0
     best_corr_sample = ""
@@ -282,15 +299,15 @@ def sampleCorrelation():
             # delta = différence maximum de correaltion
             delta = max_val - min_val
 
-            if max_val < corr_threshold :
+            if max_val < corr_threshold and verbose:
                 print(f"with sample {sample} the coef of corr is : {bcolors.FAIL} {round(max_val,6)} {bcolors.ENDC} "
                       f"with delta: {round(delta,4)} \n")
             else:
                 number_of_correlation += 1
-                if delta > corr_threshold:
+                if delta > corr_threshold and verbose:
                     print(f"with sample {sample} the coef of corr is : {bcolors.OKGREEN} {round(max_val, 6)} {bcolors.ENDC} "
                           f"with delta: {bcolors.FAIL} {round(delta, 4)} {bcolors.ENDC} \n")
-                else:
+                elif verbose:
                     print(f"with sample {sample} the coef of corr is : {bcolors.OKGREEN} {round(max_val,6)} {bcolors.ENDC} "
                           f"with delta: {bcolors.OKGREEN} {round(delta,4)} {bcolors.ENDC} \n")
             # Si on a 90% de correlation avec le sample de test, on arret les corrspondances
@@ -331,30 +348,83 @@ def sampleCorrelation():
             best_corr_sample = best_corr_sample.replace('_', ' ')
             return best_corr_sample, corr_acc
 
-
-"""
-    Main
-"""
-# Record de l'audio
-sample, fs = recsample()
-plotstft(sample, fs)
-# Correlation de l'audio
-oiseau_name, corr_value = sampleCorrelation()
-# Si nous avons détecter un oiseau
-if( oiseau_name != None and corr_value != None) :
-    print(f"Oiseau = {oiseau_name} | precision = {corr_value}")
-    # récupération de la date de détection et parsing
-    current_date = date.today()
-    current_date_sqlFormat = current_date.strftime("%Y-%m-%d %H:%M:%S")
-    # création d'un oiseau pour envois
-    oiseau = dataSender.Oiseau(oiseau_name, current_date_sqlFormat, dataSender.get_location() , get_mac_address())
-    print(json.dumps({
+def correlation(ims_plot_data, verbose):
+    # Correlation de l'audio
+    oiseau_name, corr_value = sampleCorrelation(ims_plot_data, verbose)
+    # Si nous avons détecter un oiseau
+    if (oiseau_name != None and corr_value != None):
+        print(f"Oiseau = {oiseau_name} | precision = {corr_value}")
+        # récupération de la date de détection et parsing
+        current_date = date.today()
+        current_date_sqlFormat = current_date.strftime("%Y-%m-%d %H:%M:%S")
+        # création d'un oiseau pour envois
+        oiseau = dataSender.Oiseau(oiseau_name, current_date_sqlFormat, dataSender.get_location(), get_mac_address())
+        print(json.dumps({
             'oiseau': oiseau.name,
             'date': oiseau.date,
             'localisation': oiseau.localisation,
-            'capteur':  oiseau.capteur}
+            'capteur': oiseau.capteur}
         ))
-    # envois de l'oiseau a la db
-    #dataSender.sendData(oiseau)
-else:
-    print("Aucun oiseau n'a été détecté")
+        # envois de l'oiseau a la db
+        # dataSender.sendData(oiseau)
+    else:
+        print("Aucun oiseau n'a été détecté")
+
+
+def intro_printer():
+    time.sleep(2)
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|============================================================| {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                            | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}| Welcome in our python application for bird recognition     | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                            | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}| Don't forget to use our associated app on your smartphone  | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                            | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|              Menura: Bird-Tracker                          | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                            on IOS and Android              | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                            | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|============================================================| {bcolors.ENDC}")
+    print(f"{bcolors.WARNING}{bcolors.BOLD}\n\nPress Ctrl-C to terminate while statement{bcolors.ENDC}\n")
+
+"""
+    Main
+    
+    To execute in verbose mode add one of the current arguments :
+                    -v -V --verbose --Verbose
+    
+"""
+def main():
+    verbose = False
+    if (len(sys.argv) > 1):
+        if (re.match(r"[-v,-V]",sys.argv[1])) or (re.match(r"--[v,V](erbose)",sys.argv[1])):
+            print(f"\n\n{bcolors.OKGREEN}Executing in verbose mode{bcolors.ENDC}\n")
+            verbose = True
+
+    try:
+        intro_printer()
+        while True:
+            # Record de l'audio
+            sample, fs = recsample()
+            ims_plot_data = plotstft(sample, fs)
+            ims_file_name = 'ims.png'
+
+            # threading de correlation
+            if (threading.activeCount() < max_thread and use_thread):
+                if verbose:
+                    print(f'{bcolors.OKCYAN}Total of current tread : {threading.active_count()} of {max_thread} {bcolors.ENDC} \n')
+                t = threading.Thread(target=correlation, args=(ims_plot_data, verbose,))
+                threads.append(t)
+                t.start()
+            else:
+                correlation(ims_plot_data)
+
+
+    except KeyboardInterrupt as e:
+        print(f"\n {bcolors.FAIL}{bcolors.BOLD}Please wait for the system to exit {bcolors.ENDC} \n")
+        sys.exit(e)
+        pass
+
+
+
+
+if __name__ == '__main__':
+    main()
