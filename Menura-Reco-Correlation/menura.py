@@ -20,6 +20,7 @@
 #------------------------------#
 #import _thread
 import sys
+import os
 import time
 import threading
 import math
@@ -35,6 +36,7 @@ from datetime import date
 from getmac import get_mac_address
 import json
 import dataSender
+import historique
 
 """
 Liste des oiseaux traité par l'api
@@ -52,7 +54,7 @@ api_bird_list = [
 """
 gestion des threads
 """
-max_thread = 5
+max_thread = 4
 use_thread = True
 threads = list()
 
@@ -61,7 +63,7 @@ Class de couleur pour l'écriture en console
 """
 class bcolors:
     HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
+    WARNING = '\033[94m'
     OKCYAN = '\033[96m'
     OKGREEN = '\033[92m'
     WARNING = '\033[93m'
@@ -69,6 +71,12 @@ class bcolors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+"""
+fonction helper clear console
+"""
+def cls():
+    os.system('cls' if os.name=='nt' else 'clear')
 
 """
 Enregistement du sample
@@ -82,7 +90,7 @@ def recsample():
     #durée en secondes
     sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
-    chans = sounddevice.query_devices(1,'input')
+    chans = sounddevice.query_devices(0,'input')
     print (f"Enregistrement {sec} secondes a {fs}dHz \n")
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])
     # Attente de la fin du record du sample
@@ -330,22 +338,22 @@ def sampleCorrelation(ims_plot_data, verbose):
         # si plus que la valeur de corr_threshold alors on considère que nous avons détecter quelque chose
         # si plus de 3 valeurs étant considérés comme correlation => incertitude de la prédiction
         if best_corr_val < corr_threshold or number_of_correlation > max_number_of_correlation:
-            print("No correlation found")
             return None, None
 
         # Si non nous avons détécé l'oiseau
         else :
             corr_acc = round(best_corr_val * 100, 3)
-            print(f"\n|=================================================================================|"
-                  f"\n| Bird by correlation is : {bcolors.OKGREEN} {best_corr_sample} {bcolors.ENDC}"
-                  f"\n| with a Coef of Corr : {bcolors.WARNING} {corr_acc} {bcolors.ENDC}%"
-                  f"\n|=================================================================================|"
-                  f"\n"
-                  f"\n")
             # parsing de la correlation pour la récupération du nom de l'oiseau
             best_corr_sample = best_corr_sample.replace('samples-bank/bird/', '')
             best_corr_sample = re.sub('_[0-9]*.png', '', best_corr_sample)
             best_corr_sample = best_corr_sample.replace('_', ' ')
+            print(f"\n{bcolors.WARNING}|=================================================================================|"
+                  f"\n{bcolors.WARNING}| Oiseau détecté par correlation : {bcolors.OKGREEN} {best_corr_sample} {bcolors.ENDC}"
+                  f"\n{bcolors.WARNING}| Précision de la correlation : {bcolors.WARNING} {corr_acc} {bcolors.ENDC}%"
+                  f"\n{bcolors.WARNING}| Delta de la correlation : {bcolors.WARNING} {round(best_corr_delta, 5)} {bcolors.ENDC}"
+                  f"\n{bcolors.WARNING}|=================================================================================|{bcolors.ENDC}"
+                  f"\n"
+                  f"\n")
             return best_corr_sample, corr_acc
 
 def correlation(ims_plot_data, verbose):
@@ -353,36 +361,42 @@ def correlation(ims_plot_data, verbose):
     oiseau_name, corr_value = sampleCorrelation(ims_plot_data, verbose)
     # Si nous avons détecter un oiseau
     if (oiseau_name != None and corr_value != None):
-        print(f"Oiseau = {oiseau_name} | precision = {corr_value}")
         # récupération de la date de détection et parsing
         current_date = date.today()
-        current_date_sqlFormat = current_date.strftime("%Y-%m-%d %H:%M:%S")
-        # création d'un oiseau pour envois
-        oiseau = dataSender.Oiseau(oiseau_name, current_date_sqlFormat, dataSender.get_location(), get_mac_address())
-        print(json.dumps({
-            'oiseau': oiseau.name,
-            'date': oiseau.date,
-            'localisation': oiseau.localisation,
-            'capteur': oiseau.capteur}
-        ))
-        # envois de l'oiseau a la db
-        # dataSender.sendData(oiseau)
+        # création d'un oiseau pour le check de l'historique
+        oiseau_historique = historique.bird_historique(oiseau_name, current_date)
+        if historique.check_historique(oiseau_historique):
+            current_date_sqlFormat = current_date.strftime("%Y-%m-%d %H:%M:%S")
+            # création d'un oiseau pour envois
+            oiseau = dataSender.Oiseau(oiseau_name, current_date_sqlFormat, dataSender.get_location(), get_mac_address())
+            if verbose:
+                print(json.dumps({
+                    'oiseau': oiseau.name,
+                    'date': oiseau.date,
+                    'localisation': oiseau.localisation,
+                    'capteur': oiseau.capteur}
+                ))
+                print("\n")
+            # envois de l'oiseau a la db
+            #dataSender.sendData(oiseau, verbose)
+        else:
+            print(f"\n {bcolors.OKCYAN} {oiseau_name} déjà détécté il y a moin de 24h {bcolors.ENDC} \n")
     else:
         print("Aucun oiseau n'a été détecté")
 
 
 def intro_printer():
     time.sleep(2)
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|============================================================| {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                            | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}| Welcome in our python application for bird recognition     | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                            | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}| Don't forget to use our associated app on your smartphone  | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                            | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|              Menura: Bird-Tracker                          | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                            on IOS and Android              | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                            | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|============================================================| {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}| Bienvenu dans notre application de reconnaissance des oiseaux     | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}| N'oubliez pas notre application sur votre smartphone              | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|              Menura: Bird-Tracker                                 | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                            sur IOS et Android                     | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
     print(f"{bcolors.WARNING}{bcolors.BOLD}\n\nPress Ctrl-C to terminate while statement{bcolors.ENDC}\n")
 
 """
@@ -401,6 +415,9 @@ def main():
 
     try:
         intro_printer()
+        historique.load_historique()
+        if dataSender.test_wifi_connection():
+            dataSender.save_location(None)
         while True:
             # Record de l'audio
             sample, fs = recsample()
@@ -415,11 +432,18 @@ def main():
                 threads.append(t)
                 t.start()
             else:
-                correlation(ims_plot_data)
+                correlation(ims_plot_data, verbose)
 
 
     except KeyboardInterrupt as e:
-        print(f"\n {bcolors.FAIL}{bcolors.BOLD}Please wait for the system to exit {bcolors.ENDC} \n")
+        #cls()
+        print("\n")
+        print(f"{bcolors.FAIL}{bcolors.BOLD}|=====================================================|{bcolors.ENDC}")
+        print(f"{bcolors.FAIL}{bcolors.BOLD}|Veuillez attendre la fin de la fermeture du programme| {bcolors.ENDC}")
+        print(f"{bcolors.FAIL}{bcolors.BOLD}|                                                     |{bcolors.ENDC}")
+        print(f"{bcolors.FAIL}{bcolors.BOLD}|Les dernières comparaisons sont en cours de calcul   |{bcolors.ENDC}")
+        print(f"{bcolors.FAIL}{bcolors.BOLD}|=====================================================|{bcolors.ENDC}")
+        historique.save_historique()
         sys.exit(e)
         pass
 

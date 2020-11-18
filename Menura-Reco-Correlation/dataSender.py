@@ -6,12 +6,12 @@ import pickle
 url_test = "http://www.google.com"
 url_db = 'http://146.59.195.248:3000/v1/api/historiques'
 timeout = 5
-storage_file_name = 'data_storage_no_connection.p'
+storage_file_name = 'data_storage_no_connection.pkl'
 url_location_ip = "https://freegeoip.app/json/"
-
-#
-# Objet Oiseau pour sous format de la base de donnée
-#
+localisation = None
+"""
+Objet Oiseau pour sous format de la base de donnée
+"""
 class Oiseau:
   def __init__(self, name, date, localisation, capteur):
       self.name = name
@@ -19,22 +19,50 @@ class Oiseau:
       self.localisation = localisation
       self.capteur = capteur
 
-def get_location():
-    headers = {
-        'accept': "application/json",
-        'content-type': "application/json"
-    }
-    response = requests.request("GET", url_location_ip, headers=headers)
-    response = response.json()
-    country = response["country_name"]
-    region = response["region_name"]
-    city = response["city"]
-    location = f"{country} {region} {city}"
-    return location
+"""
+Sauvegarde de la localisation pour la perte de connection
+"""
+def save_location(location):
+    if location:
+        localisation = location
+    else:
+        headers = {
+            'accept': "application/json",
+            'content-type': "application/json"
+        }
+        response = requests.request("GET", url_location_ip, headers=headers)
+        response = response.json()
+        country = response["country_name"]
+        region = response["region_name"]
+        city = response["city"]
+        localisation = f"{country} {region} {city}"
 
-#
-# fonction de test de connection internet par le serveur google.com
-#
+"""
+récupération de la locatlisation
+"""
+def get_location():
+    if test_wifi_connection():
+        headers = {
+            'accept': "application/json",
+            'content-type': "application/json"
+        }
+        response = requests.request("GET", url_location_ip, headers=headers)
+        response = response.json()
+        country = response["country_name"]
+        region = response["region_name"]
+        city = response["city"]
+        location = f"{country} {region} {city}"
+        save_location(location)
+        return location
+
+    elif localisation:
+        return localisation
+    else:
+        return 'Unknown'
+
+"""
+fonction de test de connection internet par le serveur google.com
+"""
 def test_wifi_connection():
     try:
         requests.get(url_test, timeout=timeout)
@@ -42,57 +70,63 @@ def test_wifi_connection():
     except (requests.ConnectionError, requests.Timeout):
         return False
 
-#
-# envoies des data vers la base de donnée par requête post
-# @input list of birds to send
-#
-def send_data_db(oiseau_list):
+"""
+envoies des data vers la base de donnée par requête post
+@input list of birds to send
+"""
+def send_data_db(oiseau_list, verbose):
 
-    print(oiseau_list)
+    if verbose:
+        print(oiseau_list)
 
     for oiseau_element in oiseau_list :
-        print(oiseau_element)
+        if verbose:
+            print(oiseau_element)
 
         headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
         response = requests.post(url=url_db, data=oiseau_element, headers=headers)
 
-        print("Status code: ", response.status_code)
-        print(response.json())
+        if verbose:
+            print("Status code: ", response.status_code)
+            print(response.json())
         if (response.status_code != 200):
             return False
     os.remove(storage_file_name)
     return True
 
-#
-# Store data in file for future trensmit
-# @input list of birds to store localy
-#
+"""
+Store data in file for future transmit
+@input list of birds to store locally
+"""
 def store_data(oiseau_list):
     storage_file = open(storage_file_name, 'wb')
     pickle.dump(oiseau_list, storage_file)
     storage_file.close()
 
-#
-# Load data from file
-# @return the data if there is a file
-# @return None in other cases
-#
-def recup_data():
+"""
+Load data from file
+@return the data if there is a file
+@return None in other cases
+"""
+def recup_data(verbose):
     if os.path.exists(storage_file_name):
         storage_file = open(storage_file_name, 'rb')
         oiseau_loaded = pickle.load(storage_file)
         storage_file.close()
 
-        print("Data from file :")
-        print(oiseau_loaded)
+        if verbose:
+            print("\n\n Data récupérer non envoyées : \n")
+            print(oiseau_loaded)
+            print("\n")
+
         return oiseau_loaded
     return None
 
-#
-# fonction de dispatching en fonctione de l'état de la connection
-# @input send data bird and load data if needed
-#
-def sendData(oiseau):
+"""
+fonction de dispatching en fonction de l'état de la connection
+@input send data bird and load data if needed
+"""
+def sendData(oiseau, verbose):
     oiseau_json = json.dumps({
         'oiseau': oiseau.name,
         'date': oiseau.date,
@@ -100,7 +134,7 @@ def sendData(oiseau):
         'capteur':  oiseau.capteur}
     )
 
-    oiseau_list_recup = recup_data()
+    oiseau_list_recup = recup_data(verbose)
 
     if oiseau_list_recup is not None:
         oiseau_list = oiseau_list_recup + [oiseau_json]
@@ -108,13 +142,17 @@ def sendData(oiseau):
         oiseau_list = [oiseau_json]
 
     if test_wifi_connection():
-        print("Connected to the Internet")
-        print("sending data through the Internet")
-        if(send_data_db(oiseau_list)):
-            print("Envois des données éffectué")
+        if verbose:
+            print("Connection au réseau valide")
+            print("Envois des données par le réseau vers la base de donnée")
+        if(send_data_db(oiseau_list, verbose)):
+            if verbose:
+                print("Envois des données éffectué")
         else:
-            print("Erreur lors de l'envoie des données")
+            if verbose:
+                print("Erreur lors de l'envoie des données")
             store_data(oiseau_list)
     else:
-        print("Erreur de connection au réseau")
+        if verbose:
+            print("Erreur de connection au réseau")
         store_data(oiseau_list)
