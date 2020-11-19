@@ -400,7 +400,7 @@ def intro_printer():
     print(f"{bcolors.BOLD}{bcolors.HEADER}|                            sur IOS et Android                     | {bcolors.ENDC}")
     print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
     print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
-    print(f"{bcolors.FAIL}{bcolors.BOLD}  |        Votre addresse mac {mac_add}{bcolors.ENDC}")
+    print(f"{bcolors.FAIL}{bcolors.BOLD}|        Votre addresse mac {mac_add}{bcolors.ENDC}")
     print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
     print(f"{bcolors.WARNING}{bcolors.BOLD}\n\nPress Ctrl-C to terminate while statement{bcolors.ENDC}\n")
 
