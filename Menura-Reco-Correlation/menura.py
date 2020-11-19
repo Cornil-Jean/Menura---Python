@@ -54,7 +54,7 @@ api_bird_list = [
 """
 gestion des threads
 """
-max_thread = 4
+max_thread = 5
 use_thread = True
 threads = list()
 
@@ -86,11 +86,11 @@ Enregistement du sample
 """
 def recsample():
     #frequence échantillonnage
-    fs = 48000 / 1
+    fs = 48000
     #durée en secondes
     sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
-    chans = sounddevice.query_devices(0,'input')
+    chans = sounddevice.query_devices(1,'input')
     print (f"Enregistrement {sec} secondes a {fs}dHz \n")
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])
     # Attente de la fin du record du sample
@@ -99,6 +99,8 @@ def recsample():
 
 """
 short time fourier transform of audio signal
+
+passage de temporel a fréquance
 
 @input sig: signal su lequel exécuter la FTT
 @input frameSize: taille du signal
@@ -318,7 +320,7 @@ def sampleCorrelation(ims_plot_data, verbose):
                 elif verbose:
                     print(f"with sample {sample} the coef of corr is : {bcolors.OKGREEN} {round(max_val,6)} {bcolors.ENDC} "
                           f"with delta: {bcolors.OKGREEN} {round(delta,4)} {bcolors.ENDC} \n")
-            # Si on a 90% de correlation avec le sample de test, on arret les corrspondances
+            # Si on a 80% de correlation avec le sample de test, on arret les corrspondances
             if (max_val > corr_value_bypass):
                 best_corr_val = max_val
                 best_corr_sample = sample
@@ -378,7 +380,7 @@ def correlation(ims_plot_data, verbose):
                 ))
                 print("\n")
             # envois de l'oiseau a la db
-            #dataSender.sendData(oiseau, verbose)
+            dataSender.sendData(oiseau, verbose)
         else:
             print(f"\n {bcolors.OKCYAN} {oiseau_name} déjà détécté il y a moin de 24h {bcolors.ENDC} \n")
     else:
@@ -387,6 +389,7 @@ def correlation(ims_plot_data, verbose):
 
 def intro_printer():
     time.sleep(2)
+    mac_add = get_mac_address()
     print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
     print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
     print(f"{bcolors.BOLD}{bcolors.HEADER}| Bienvenu dans notre application de reconnaissance des oiseaux     | {bcolors.ENDC}")
@@ -396,6 +399,8 @@ def intro_printer():
     print(f"{bcolors.BOLD}{bcolors.HEADER}|              Menura: Bird-Tracker                                 | {bcolors.ENDC}")
     print(f"{bcolors.BOLD}{bcolors.HEADER}|                            sur IOS et Android                     | {bcolors.ENDC}")
     print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
+    print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
+    print(f"{bcolors.FAIL}{bcolors.BOLD}  |        Votre addresse mac {mac_add}{bcolors.ENDC}")
     print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
     print(f"{bcolors.WARNING}{bcolors.BOLD}\n\nPress Ctrl-C to terminate while statement{bcolors.ENDC}\n")
 
@@ -439,7 +444,7 @@ def main():
         #cls()
         print("\n")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|=====================================================|{bcolors.ENDC}")
-        print(f"{bcolors.FAIL}{bcolors.BOLD}|Veuillez attendre la fin de la fermeture du programme| {bcolors.ENDC}")
+        print(f"{bcolors.FAIL}{bcolors.BOLD}|Veuillez attendre la fin de la fermeture du programme|{bcolors.ENDC}")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|                                                     |{bcolors.ENDC}")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|Les dernières comparaisons sont en cours de calcul   |{bcolors.ENDC}")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|=====================================================|{bcolors.ENDC}")
