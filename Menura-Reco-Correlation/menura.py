@@ -481,7 +481,7 @@ def main():
         set_mic_entry(mic_entry_value)
         set_max_thread(max_thread_value)
         set_use_thread(use_thread_value)
-        if verbose:
+        if verbose or not os.path.exists(config.get_config_file_name()):
             cls()
             choice_handler()
         if dataSender.test_wifi_connection():

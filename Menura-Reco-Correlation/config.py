@@ -14,6 +14,13 @@ max_thread_config = 5
 use_thread_config = True
 
 """
+renvois nom de fichier de config
+"""
+def get_config_file_name():
+    global config_file_name
+    return config_file_name
+
+"""
 renvois de la configuration de l'application
 """
 def get_config():
@@ -74,7 +81,6 @@ def load_config():
         storage_file = open(config_file_name, 'rb')
         settings = pickle.load(storage_file)
         storage_file.close()
-        print(settings)
         # récupération des valeurs de config
         use_thread_config = settings[0]
         max_thread_config = settings[1]
