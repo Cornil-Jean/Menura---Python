@@ -8,6 +8,7 @@
 #pip install scipy
 #pip install opencv-python
 #pip install getmac
+#pip install art
 
 #------------------------------#
 # Documentation
@@ -18,7 +19,6 @@
 #------------------------------#
 # Imports
 #------------------------------#
-#import _thread
 import sys
 import os
 import time
@@ -37,6 +37,8 @@ from getmac import get_mac_address
 import json
 import dataSender
 import historique
+import menu_render
+import config
 
 """
 Liste des oiseaux traité par l'api
@@ -52,11 +54,36 @@ api_bird_list = [
 ]
 
 """
+value de l'entrée micro
+"""
+mic_entry = 0
+
+"""
 gestion des threads
 """
 max_thread = 5
 use_thread = True
-threads = list()
+
+"""
+setter mic entry
+"""
+def set_mic_entry(mic_entry_value):
+    global  mic_entry
+    mic_entry = mic_entry_value
+
+"""
+setter max thread
+"""
+def set_max_thread(max_thread_value):
+    global  max_thread
+    max_thread = max_thread_value
+
+"""
+setter use thread
+"""
+def set_use_thread(use_thread_value):
+    global  use_thread
+    use_thread = use_thread_value
 
 """
 Class de couleur pour l'écriture en console
@@ -90,7 +117,7 @@ def recsample():
     #durée en secondes
     sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
-    chans = sounddevice.query_devices(1,'input')
+    chans = sounddevice.query_devices(mic_entry,'input')
     print (f"Enregistrement {sec} secondes a {fs}dHz \n")
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])
     # Attente de la fin du record du sample
@@ -386,23 +413,50 @@ def correlation(ims_plot_data, verbose):
     else:
         print("Aucun oiseau n'a été détecté")
 
+"""
+Gestion de l'interface menu en mode verbose
+"""
+def choice_handler():
+    global mic_entry
+    global use_thread
+    global max_thread
 
-def intro_printer():
-    time.sleep(2)
-    mac_add = get_mac_address()
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}| Bienvenu dans notre application de reconnaissance des oiseaux     | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}| N'oubliez pas notre application sur votre smartphone              | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|              Menura: Bird-Tracker                                 | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                            sur IOS et Android                     | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
-    print(f"{bcolors.FAIL}{bcolors.BOLD}|        Votre addresse mac {mac_add}{bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
-    print(f"{bcolors.WARNING}{bcolors.BOLD}\n\nPress Ctrl-C to terminate while statement{bcolors.ENDC}\n")
+    config.save_config(use_thread, max_thread, mic_entry)
+
+    menu_render.intro_printer()
+    menu_render.config_printer(use_thread, max_thread, mic_entry)
+    menu_render.choice_printer()
+    choix = input(" ")
+
+    if (choix == "1"):
+        cls()
+        menu_render.show_historique(historique.get_historique())
+        cls()
+        choice_handler()
+    elif (choix == "2"):
+        cls()
+        thread = menu_render.show_thread(use_thread, max_thread)
+        if (thread == 0):
+            use_thread = False
+            config.set_use_thread(False)
+        else:
+            use_thread = True
+            config.set_use_thread(True)
+        max_thread = thread
+        config.set_max_thread(thread)
+        cls()
+        choice_handler()
+    elif (choix == "3"):
+        cls()
+        mic_entry = menu_render.show_mic_entry(mic_entry)
+        config.set_mic_entry(mic_entry)
+        cls()
+        choice_handler()
+    elif (choix == "4"):
+        cls()
+        menu_render.show_mac_add()
+        cls()
+        choice_handler()
 
 """
     Main
@@ -419,8 +473,17 @@ def main():
             verbose = True
 
     try:
-        intro_printer()
+        menu_render.intro_printer()
+        # chargement de l'historique
         historique.load_historique()
+        # récupération des configurations
+        use_thread_value, max_thread_value, mic_entry_value = config.get_config()
+        set_mic_entry(mic_entry_value)
+        set_max_thread(max_thread_value)
+        set_use_thread(use_thread_value)
+        if verbose:
+            cls()
+            choice_handler()
         if dataSender.test_wifi_connection():
             dataSender.save_location(None)
         while True:
@@ -434,7 +497,6 @@ def main():
                 if verbose:
                     print(f'{bcolors.OKCYAN}Total of current tread : {threading.active_count()} of {max_thread} {bcolors.ENDC} \n')
                 t = threading.Thread(target=correlation, args=(ims_plot_data, verbose,))
-                threads.append(t)
                 t.start()
             else:
                 correlation(ims_plot_data, verbose)
