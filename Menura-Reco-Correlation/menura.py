@@ -503,7 +503,6 @@ def main():
 
 
     except KeyboardInterrupt as e:
-        #cls()
         print("\n")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|=====================================================|{bcolors.ENDC}")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|Veuillez attendre la fin de la fermeture du programme|{bcolors.ENDC}")
