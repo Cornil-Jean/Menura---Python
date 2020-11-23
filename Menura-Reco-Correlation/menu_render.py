@@ -2,6 +2,8 @@ import time
 from getmac import get_mac_address
 import sounddevice
 from art import *
+import glob
+import re
 
 """
 Class de couleur pour l'écriture en console
@@ -113,23 +115,56 @@ def config_printer(use_thread, max_thread, mic_entry):
     print(f"{bcolors.ENDC}")
 
 """
+Parsing du nom des oiseaux
+"""
+def pars_bird_name(name):
+    name = name.replace('samples-bank/bird/', '')
+    name = re.sub('_[0-9]*.png', '', name)
+    name = name.replace('_', ' ')
+    return name
+
+
+"""
+affichage de la liste des oiseaux prix en charge
+"""
+def show_bird_list():
+    sampleList = glob.glob("samples-bank/bird/*.png")
+    bird_list = []
+    for sample in sampleList:
+        sample_name = pars_bird_name(sample)
+        if sample_name not in bird_list:
+            bird_list.append(sample_name)
+    bird_list.sort()
+
+    tprint("Oiseaux")
+    print(f"\n \n")
+    print(f"{bcolors.OKCYAN}{bcolors.BOLD} liste des oiseaux pris en charge par notre application {bcolors.ENDC}")
+    print(f"\n")
+    for bird in bird_list:
+        print(f"{bcolors.OKCYAN}- {bird}{bcolors.ENDC}")
+    print(f"\n{bcolors.OKCYAN} {bcolors.BOLD} Pour un total de {len(bird_list)} oiseaux")
+
+    input(f"\n \n{bcolors.WARNING}entrez une touche pour quitter {bcolors.ENDC}\n")
+
+"""
 Helper pour le choix de l'entrée du menu
 """
 def choice_printer():
     print(f"{bcolors.BOLD}{bcolors.HEADER}")
-    print(f"|================================|")
-    print(f"|                                |")
-    print(f"|    Que voulez-vous faire ?     |")
-    print(f"|                                |")
-    print(f"|================================|")
-    print(f"|                                |")
-    print(f"| 1) mon historique              |")
-    print(f"| 2) multit thread               |")
-    print(f"| 3) choix de l'entrée micro     |")
-    print(f"| 4) mon adresse MAC             |")
-    print(f"|                                |")
-    print(f"| 0) Lancer la détection         |")
-    print(f"|================================|")
+    print(f"|==========================================|")
+    print(f"|                                          |")
+    print(f"|         Que voulez-vous faire ?          |")
+    print(f"|                                          |")
+    print(f"|==========================================|")
+    print(f"|                                          |")
+    print(f"|   1) mon historique                      |")
+    print(f"|   2) multit thread                       |")
+    print(f"|   3) choix de l'entrée micro             |")
+    print(f"|   4) mon adresse MAC                     |")
+    print(f"|   5) liste des oiseaux pris en charge    |")
+    print(f"|                                          |")
+    print(f"|   0) Lancer la détection                 |")
+    print(f"|==========================================|")
     print(f"{bcolors.ENDC} \n \n", end='\r')
 
 

@@ -85,4 +85,3 @@ def load_config():
         use_thread_config = settings[0]
         max_thread_config = settings[1]
         mic_entry_config = settings[2]
-
