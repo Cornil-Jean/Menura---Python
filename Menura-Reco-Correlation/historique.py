@@ -28,21 +28,20 @@ class bird_historique:
         self.date = date
 
 """
+Renvois de l'historique actuelle
+"""
+def get_historique():
+    return current_historique
+
+"""
 Fonction de récupération de l'historique
 """
 def load_historique():
+    global current_historique
     if os.path.exists(historique_file_name):
         storage_file = open(historique_file_name, 'rb')
         current_historique = pickle.load(storage_file)
         storage_file.close()
-
-        print("Hisotirque de détection :")
-        if len(current_historique) > 0:
-            for hist in current_historique:
-                print(f"Oiseau : {hist.name} | date : {hist.date}")
-        else:
-            print("Pas d'historique")
-        print("\n")
 
 """
 Fonction de sauvgarde de l'historique

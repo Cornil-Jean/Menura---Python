@@ -8,6 +8,7 @@
 #pip install scipy
 #pip install opencv-python
 #pip install getmac
+#pip install art
 
 #------------------------------#
 # Documentation
@@ -18,7 +19,6 @@
 #------------------------------#
 # Imports
 #------------------------------#
-#import _thread
 import sys
 import os
 import time
@@ -37,6 +37,8 @@ from getmac import get_mac_address
 import json
 import dataSender
 import historique
+import menu_render
+import config
 
 """
 Liste des oiseaux traité par l'api
@@ -52,11 +54,36 @@ api_bird_list = [
 ]
 
 """
+value de l'entrée micro
+"""
+mic_entry = 0
+
+"""
 gestion des threads
 """
-max_thread = 4
+max_thread = 5
 use_thread = True
-threads = list()
+
+"""
+setter mic entry
+"""
+def set_mic_entry(mic_entry_value):
+    global  mic_entry
+    mic_entry = mic_entry_value
+
+"""
+setter max thread
+"""
+def set_max_thread(max_thread_value):
+    global  max_thread
+    max_thread = max_thread_value
+
+"""
+setter use thread
+"""
+def set_use_thread(use_thread_value):
+    global  use_thread
+    use_thread = use_thread_value
 
 """
 Class de couleur pour l'écriture en console
@@ -86,11 +113,11 @@ Enregistement du sample
 """
 def recsample():
     #frequence échantillonnage
-    fs = 48000 / 1
+    fs = 48000
     #durée en secondes
     sec = 4
     #Recupere les infos sur le micro integré dans un dictionnaire chans
-    chans = sounddevice.query_devices(0,'input')
+    chans = sounddevice.query_devices(mic_entry,'input')
     print (f"Enregistrement {sec} secondes a {fs}dHz \n")
     record_voice=sounddevice.rec(int(sec*fs),samplerate=fs,channels=chans["max_input_channels"])
     # Attente de la fin du record du sample
@@ -99,6 +126,8 @@ def recsample():
 
 """
 short time fourier transform of audio signal
+
+passage de temporel a fréquance
 
 @input sig: signal su lequel exécuter la FTT
 @input frameSize: taille du signal
@@ -225,17 +254,22 @@ def spectrogramCleaner(ims):
     ])
     # passage par une array d'acentuation de l'image
     ims = signal.convolve2d(ims, conv_array, boundary='symm', mode='same')
-
     # calcul de la moyenne de l'image
     ims_mean = np.mean(ims)
-
     # suppression des éléments inférieurs a la moyenne
     # vectorization de la fonction pour sont exécution sur chaque cellule du tableau
     ims = np.vectorize(cleanerSpectro_Helper)(ims, ims_mean)
-
-
     # renvois de l'image nettoyée
     return ims
+
+"""
+Parsing du nom des oiseaux
+"""
+def pars_bird_name(name):
+    name = name.replace('samples-bank/bird/', '')
+    name = re.sub('_[0-9]*.png', '', name)
+    name = name.replace('_', ' ')
+    return name
 
 """
 Correlation entre l'image donnée et la banque de donnée
@@ -251,6 +285,12 @@ def sampleCorrelation(ims_plot_data, verbose):
     corr_threshold = 0.6 # seul de correlation = 60%
     corr_value_bypass = 0.80  # seul de correlation assurée = 80%
     max_number_of_correlation = 6 # Max 5 correlation si non erreur
+    # liste de détection des oiseaux
+    # et variables utilisées lors de la correlation
+    current_detection = []
+    best_corr_val = corr_threshold
+    best_corr_delta = 0
+    number_of_correlation = 0
     # Récupération de la liste des samples de test
     sampleList = glob.glob("samples-bank/bird/*.png")
     # Récupération du sample de silence
@@ -260,8 +300,6 @@ def sampleCorrelation(ims_plot_data, verbose):
     #ims_file = ims_file_name
     #ims = cv.imread(ims_file,0)
     ims = ims_plot_data
-
-    best_corr_val = 0
     best_corr_sample = ""
 
     # définition de la méthode de matching
@@ -288,10 +326,6 @@ def sampleCorrelation(ims_plot_data, verbose):
     if max_val > corr_threshold:
         return None, None
     else:
-        number_of_correlation = 0
-        best_corr_val = 0
-        best_corr_delta = 0
-
         for sample in sampleList :
             # import du sample de test comme template
             template = cv.imread(sample,0)
@@ -311,28 +345,37 @@ def sampleCorrelation(ims_plot_data, verbose):
                 print(f"with sample {sample} the coef of corr is : {bcolors.FAIL} {round(max_val,6)} {bcolors.ENDC} "
                       f"with delta: {round(delta,4)} \n")
             else:
+                # détection rentre dans les cirtère de valeurs
                 number_of_correlation += 1
+                # si trop de détection possible, arrêt des test de correlation
+                if number_of_correlation > max_number_of_correlation:
+                    break
                 if delta > corr_threshold and verbose:
                     print(f"with sample {sample} the coef of corr is : {bcolors.OKGREEN} {round(max_val, 6)} {bcolors.ENDC} "
                           f"with delta: {bcolors.FAIL} {round(delta, 4)} {bcolors.ENDC} \n")
                 elif verbose:
                     print(f"with sample {sample} the coef of corr is : {bcolors.OKGREEN} {round(max_val,6)} {bcolors.ENDC} "
                           f"with delta: {bcolors.OKGREEN} {round(delta,4)} {bcolors.ENDC} \n")
-            # Si on a 90% de correlation avec le sample de test, on arret les corrspondances
+            # Si on a 80% de correlation avec le sample de test, on arret les correspondances
             if (max_val > corr_value_bypass):
                 best_corr_val = max_val
                 best_corr_sample = sample
-                number_of_correlation = -1
                 break
             # Si une meilleur valeur de corrélation est obtenure
-            # et que le delta de correlation est inférieur au threshold de correlation
-            if max_val > best_corr_val and delta < corr_threshold:
-                # si la valeur est plus grande de 10% de la valeur précédente de correlation
-                # ou si le delta est inférieur au délta de correlation précédent
-                if (math.floor(max_val*10) > math.floor(best_corr_val*10)) or (delta < best_corr_delta):
-                    best_corr_val = max_val
-                    best_corr_delta = delta
-                    best_corr_sample = sample
+            if max_val > best_corr_val :
+                # si l'oiseau a déjà été détecté on ajoute de 5% de probabilitées
+                if (pars_bird_name(sample) in current_detection):
+                    if verbose:
+                        print(f"{bcolors.OKCYAN}{pars_bird_name(sample)} détecté, amélioration des probabilitées {bcolors.ENDC}")
+                    max_val += 0.05
+                    number_of_correlation -= 1
+                else:
+                    # ajout a la liste des oiseaux de correlation
+                    current_detection.append(pars_bird_name(sample))
+                # attribution comme meilleure correlation
+                best_corr_val = max_val
+                best_corr_delta = delta
+                best_corr_sample = sample
 
         # Vérification de la précision de la détection
         # si plus que la valeur de corr_threshold alors on considère que nous avons détecter quelque chose
@@ -344,9 +387,7 @@ def sampleCorrelation(ims_plot_data, verbose):
         else :
             corr_acc = round(best_corr_val * 100, 3)
             # parsing de la correlation pour la récupération du nom de l'oiseau
-            best_corr_sample = best_corr_sample.replace('samples-bank/bird/', '')
-            best_corr_sample = re.sub('_[0-9]*.png', '', best_corr_sample)
-            best_corr_sample = best_corr_sample.replace('_', ' ')
+            best_corr_sample = pars_bird_name(best_corr_sample)
             print(f"\n{bcolors.WARNING}|=================================================================================|"
                   f"\n{bcolors.WARNING}| Oiseau détecté par correlation : {bcolors.OKGREEN} {best_corr_sample} {bcolors.ENDC}"
                   f"\n{bcolors.WARNING}| Précision de la correlation : {bcolors.WARNING} {corr_acc} {bcolors.ENDC}%"
@@ -378,26 +419,61 @@ def correlation(ims_plot_data, verbose):
                 ))
                 print("\n")
             # envois de l'oiseau a la db
-            #dataSender.sendData(oiseau, verbose)
+            dataSender.sendData(oiseau, verbose)
         else:
             print(f"\n {bcolors.OKCYAN} {oiseau_name} déjà détécté il y a moin de 24h {bcolors.ENDC} \n")
     else:
         print("Aucun oiseau n'a été détecté")
 
+"""
+Gestion de l'interface menu en mode verbose
+"""
+def choice_handler():
+    global mic_entry
+    global use_thread
+    global max_thread
 
-def intro_printer():
-    time.sleep(2)
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}| Bienvenu dans notre application de reconnaissance des oiseaux     | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}| N'oubliez pas notre application sur votre smartphone              | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|              Menura: Bird-Tracker                                 | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                            sur IOS et Android                     | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|                                                                   | {bcolors.ENDC}")
-    print(f"{bcolors.BOLD}{bcolors.HEADER}|===================================================================| {bcolors.ENDC}")
-    print(f"{bcolors.WARNING}{bcolors.BOLD}\n\nPress Ctrl-C to terminate while statement{bcolors.ENDC}\n")
+    config.save_config(use_thread, max_thread, mic_entry)
+
+    menu_render.intro_printer()
+    menu_render.config_printer(use_thread, max_thread, mic_entry)
+    menu_render.choice_printer()
+    choix = input(" ")
+
+    if (choix == "1"):
+        cls()
+        menu_render.show_historique(historique.get_historique())
+        cls()
+        choice_handler()
+    elif (choix == "2"):
+        cls()
+        thread = menu_render.show_thread(use_thread, max_thread)
+        if (thread == 0):
+            use_thread = False
+            config.set_use_thread(False)
+        else:
+            use_thread = True
+            config.set_use_thread(True)
+        max_thread = thread
+        config.set_max_thread(thread)
+        cls()
+        choice_handler()
+    elif (choix == "3"):
+        cls()
+        mic_entry = menu_render.show_mic_entry(mic_entry)
+        config.set_mic_entry(mic_entry)
+        cls()
+        choice_handler()
+    elif (choix == "4"):
+        cls()
+        menu_render.show_mac_add()
+        cls()
+        choice_handler()
+    elif (choix == "5"):
+        cls()
+        menu_render.show_bird_list()
+        cls()
+        choice_handler()
 
 """
     Main
@@ -414,10 +490,20 @@ def main():
             verbose = True
 
     try:
-        intro_printer()
+        menu_render.intro_printer()
+        # chargement de l'historique
         historique.load_historique()
+        # récupération des configurations
+        use_thread_value, max_thread_value, mic_entry_value = config.get_config()
+        set_mic_entry(mic_entry_value)
+        set_max_thread(max_thread_value)
+        set_use_thread(use_thread_value)
+        if verbose or not os.path.exists(config.get_config_file_name()):
+            cls()
+            choice_handler()
         if dataSender.test_wifi_connection():
             dataSender.save_location(None)
+        cls()
         while True:
             # Record de l'audio
             sample, fs = recsample()
@@ -429,17 +515,15 @@ def main():
                 if verbose:
                     print(f'{bcolors.OKCYAN}Total of current tread : {threading.active_count()} of {max_thread} {bcolors.ENDC} \n')
                 t = threading.Thread(target=correlation, args=(ims_plot_data, verbose,))
-                threads.append(t)
                 t.start()
             else:
                 correlation(ims_plot_data, verbose)
 
 
     except KeyboardInterrupt as e:
-        #cls()
         print("\n")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|=====================================================|{bcolors.ENDC}")
-        print(f"{bcolors.FAIL}{bcolors.BOLD}|Veuillez attendre la fin de la fermeture du programme| {bcolors.ENDC}")
+        print(f"{bcolors.FAIL}{bcolors.BOLD}|Veuillez attendre la fin de la fermeture du programme|{bcolors.ENDC}")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|                                                     |{bcolors.ENDC}")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|Les dernières comparaisons sont en cours de calcul   |{bcolors.ENDC}")
         print(f"{bcolors.FAIL}{bcolors.BOLD}|=====================================================|{bcolors.ENDC}")
