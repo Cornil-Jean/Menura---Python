@@ -4,7 +4,7 @@ import os
 import pickle
 
 url_test = "http://www.google.com"
-url_db = 'http://146.59.195.248:3000/v1/api/historiques'
+url_db = 'https://menura.be:3000/v1/api/historiques'
 timeout = 5
 storage_file_name = 'data_storage_no_connection.pkl'
 url_location_ip = "https://freegeoip.app/json/"
@@ -23,6 +23,7 @@ class Oiseau:
 Sauvegarde de la localisation pour la perte de connection
 """
 def save_location(location):
+    global localisation
     if location:
         localisation = location
     else:
@@ -75,7 +76,6 @@ envoies des data vers la base de donnée par requête post
 @input list of birds to send
 """
 def send_data_db(oiseau_list, verbose):
-
     if verbose:
         print(oiseau_list)
 

@@ -284,7 +284,7 @@ def sampleCorrelation(ims_plot_data, verbose):
     # nombre max de correlatin acceptable
     corr_threshold = 0.6 # seul de correlation = 60%
     corr_value_bypass = 0.80  # seul de correlation assurée = 80%
-    max_number_of_correlation = 6 # Max 5 correlation si non erreur
+    max_number_of_correlation = 10 # Max 10 correlation si non erreur
     # liste de détection des oiseaux
     # et variables utilisées lors de la correlation
     current_detection = []
