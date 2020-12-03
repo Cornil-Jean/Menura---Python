@@ -91,7 +91,8 @@ def send_data_db(oiseau_list, verbose):
             print(response.json())
         if (response.status_code != 200):
             return False
-    os.remove(storage_file_name)
+    if os.path.exists(storage_file_name):
+        os.remove(storage_file_name)
     return True
 
 """
